@@ -75,7 +75,10 @@ let stockData = {
 async function loadState() {
     try {
         const data = await fs.readFile('state.json', 'utf8');
-        stockData = JSON.parse(data);
+        const saved = JSON.parse(data);
+        stockData.seeds = saved.seeds || [];
+        stockData.gear = saved.gear || [];
+        stockData.messageId = saved.messageId || null;
         console.log('📂 Загружено состояние');
     } catch (error) {
         console.log('🆕 Новое состояние');
