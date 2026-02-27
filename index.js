@@ -50,18 +50,18 @@ const EMOJIS = {
     'Battery Pack': '🔋'
 };
 
-// ----- ИЗБРАННЫЕ ДЛЯ ПИНГА -----
+// ----- ИЗБРАННЫЕ ДЛЯ ПИНГА (ТВОИ) -----
 const PREFERRED_SEEDS = [
-    'Dragon Fruit',
-    'Strawberry',
-    'Cactus',
-    'Pumpkin'
+    'King Limone',
+    'Starfruit',
+    'Brussel Sprouts',
+    'Kiwi Cannoneer',
+    'Kelp Katapulter'
 ];
 
 const PREFERRED_GEAR = [
-    'Banana Gun',
-    'Frost Grenade',
-    'Water Bucket'
+    'Carrot Launcher',
+    'Battery Pack'
 ];
 
 // ----- ХРАНИЛИЩЕ ДАННЫХ -----
@@ -87,34 +87,46 @@ async function saveState() {
 }
 
 // ===== ПАРСИНГ КАНАЛА =====
-async function parseChannel(channelId, type) { // type = 'seeds' или 'gear'
+async function parseChannel(channelId, type) {
     try {
         const channel = client.channels.cache.get(channelId);
-        if (!channel) return null;
+        if (!channel) {
+            console.log(`❌ Канал ${type} не найден`);
+            return null;
+        }
         
-        const messages = await channel.messages.fetch({ limit: 1 });
-        const msg = messages.first();
+        const messages = await channel.messages.fetch({ limit: 5 });
         
-        if (!msg || !msg.embeds || !msg.embeds.length) return null;
-        
-        const embed = msg.embeds[0];
-        if (!embed.description) return null;
-        
-        const items = [];
-        const lines = embed.description.split('\n');
-        
-        for (const line of lines) {
-            // Парсим строки типа "- Cactus x4" или "- Water Bucket x5"
-            const match = line.match(/- ([\w\s]+?) x(\d+)/i);
-            if (match) {
-                items.push({
-                    name: match[1].trim(),
-                    count: parseInt(match[2])
-                });
+        for (const msg of messages.values()) {
+            // Ищем сообщения от PVB Stocks
+            if (msg.author.username.includes('PVB Stocks') && msg.embeds && msg.embeds.length > 0) {
+                const embed = msg.embeds[0];
+                
+                if (embed.description) {
+                    const items = [];
+                    const lines = embed.description.split('\n');
+                    
+                    for (const line of lines) {
+                        // Парсим "- Cactus x4" или "Cactus x4"
+                        const match = line.match(/-?\s*([\w\s]+?)\s*x(\d+)/i);
+                        if (match) {
+                            items.push({
+                                name: match[1].trim(),
+                                count: parseInt(match[2])
+                            });
+                        }
+                    }
+                    
+                    if (items.length > 0) {
+                        console.log(`✅ Найдено ${type}: ${items.length} предметов`);
+                        return items;
+                    }
+                }
             }
         }
         
-        return items.length ? items : null;
+        console.log(`❌ Нет свежих данных в ${type}`);
+        return null;
     } catch (error) {
         console.error(`Ошибка парсинга ${type}:`, error.message);
         return null;
@@ -128,30 +140,26 @@ async function sendToDiscord() {
         return;
     }
     
-    // Ищем свой сервер по ID из .env
+    // Ищем свой сервер по ID
     const myGuild = client.guilds.cache.get(process.env.GUILD_ID);
     
     let pingText = '';
     
-    // Формируем пинги (только для избранных)
+    // Формируем пинги ТОЛЬКО для избранных (если есть роли)
     if (myGuild) {
-        // Сначала проверяем избранные семена
+        // Семена
         for (const item of stockData.seeds) {
             if (PREFERRED_SEEDS.includes(item.name)) {
-                const myRole = myGuild.roles.cache.find(r => r.name === item.name);
-                if (myRole) {
-                    pingText += `<@&${myRole.id}> `;
-                }
+                const role = myGuild.roles.cache.find(r => r.name === item.name);
+                if (role) pingText += `<@&${role.id}> `;
             }
         }
         
-        // Потом избранный гир
+        // Гир
         for (const item of stockData.gear) {
             if (PREFERRED_GEAR.includes(item.name)) {
-                const myRole = myGuild.roles.cache.find(r => r.name === item.name);
-                if (myRole) {
-                    pingText += `<@&${myRole.id}> `;
-                }
+                const role = myGuild.roles.cache.find(r => r.name === item.name);
+                if (role) pingText += `<@&${role.id}> `;
             }
         }
     }
@@ -185,7 +193,7 @@ async function sendToDiscord() {
     }
     
     const message = {
-        content: pingText.trim(),
+        content: pingText.trim() || undefined,
         embeds: [{
             title: '🌱 PLANTS VS BRAINROTS | STOCK',
             color: 0x00FF00,
@@ -223,39 +231,31 @@ async function sendToDiscord() {
 async function checkAll() {
     console.log(`\n🕒 ${new Date().toLocaleTimeString()} - Проверка...`);
     
-    const [newSeeds, newGear] = await Promise.all([
-        parseChannel(process.env.SEED_CHANNEL_ID, 'seeds'),
-        parseChannel(process.env.GEAR_CHANNEL_ID, 'gear')
-    ]);
+    // Парсим оба канала
+    const newSeeds = await parseChannel(process.env.SEED_CHANNEL_ID, 'seeds');
+    const newGear = await parseChannel(process.env.GEAR_CHANNEL_ID, 'gear');
     
     let changed = false;
     
+    // Сравниваем семена
     if (newSeeds) {
         if (JSON.stringify(newSeeds) !== JSON.stringify(stockData.seeds)) {
             console.log('🔄 Семена изменились');
             stockData.seeds = newSeeds;
             changed = true;
         }
-    } else {
-        if (stockData.seeds.length > 0) {
-            stockData.seeds = [];
-            changed = true;
-        }
     }
     
+    // Сравниваем гир
     if (newGear) {
         if (JSON.stringify(newGear) !== JSON.stringify(stockData.gear)) {
             console.log('🔄 Гир изменился');
             stockData.gear = newGear;
             changed = true;
         }
-    } else {
-        if (stockData.gear.length > 0) {
-            stockData.gear = [];
-            changed = true;
-        }
     }
     
+    // Если что-то изменилось — отправляем
     if (changed) {
         await saveState();
         await sendToDiscord();
@@ -268,14 +268,15 @@ async function checkAll() {
 client.on('ready', async () => {
     console.log(`✅ Залогинен как ${client.user.tag}`);
     
-    console.log('\n📋 СПИСОК ТВОИХ СЕРВЕРОВ:');
+    console.log('\n📋 Доступные сервера:');
     client.guilds.cache.forEach(guild => {
-        console.log(`🔹 "${guild.name}" (ID: ${guild.id})`);
+        console.log(`🔹 ${guild.name} (${guild.id})`);
     });
     
     await loadState();
     await checkAll();
     
+    // Проверка каждые 30 секунд
     setInterval(checkAll, 30 * 1000);
     
     console.log('👀 Бот запущен и следит за каналами');
