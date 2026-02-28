@@ -234,7 +234,6 @@ async function sendToDiscord() {
 async function checkAll() {
     console.log(`\n🕒 ${new Date().toLocaleTimeString()} - Проверка...`);
     
-    // Парсим оба канала
     const newSeeds = await parseChannel(process.env.SEED_CHANNEL_ID, 'seeds');
     const newGear = await parseChannel(process.env.GEAR_CHANNEL_ID, 'gear');
     
@@ -242,24 +241,41 @@ async function checkAll() {
     
     // Сравниваем семена
     if (newSeeds) {
-        if (JSON.stringify(newSeeds) !== JSON.stringify(stockData.seeds)) {
-            console.log('🔄 Семена изменились');
+        // Проверяем, отличаются ли от того что уже есть
+        if (!stockData.seeds.length || JSON.stringify(newSeeds) !== JSON.stringify(stockData.seeds)) {
+            console.log('🔄 Семена изменились или появились впервые');
             stockData.seeds = newSeeds;
+            changed = true;
+        } else {
+            console.log('⏺️ Семена те же');
+        }
+    } else {
+        if (stockData.seeds.length > 0) {
+            console.log('🔄 Семена пропали');
+            stockData.seeds = [];
             changed = true;
         }
     }
     
     // Сравниваем гир
     if (newGear) {
-        if (JSON.stringify(newGear) !== JSON.stringify(stockData.gear)) {
-            console.log('🔄 Гир изменился');
+        if (!stockData.gear.length || JSON.stringify(newGear) !== JSON.stringify(stockData.gear)) {
+            console.log('🔄 Гир изменился или появился впервые');
             stockData.gear = newGear;
+            changed = true;
+        } else {
+            console.log('⏺️ Гир тот же');
+        }
+    } else {
+        if (stockData.gear.length > 0) {
+            console.log('🔄 Гир пропал');
+            stockData.gear = [];
             changed = true;
         }
     }
     
-    // Если что-то изменилось — отправляем
     if (changed) {
+        console.log('📤 Отправляем обновление...');
         await saveState();
         await sendToDiscord();
     } else {
