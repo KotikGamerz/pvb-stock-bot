@@ -41,13 +41,15 @@ const EMOJIS = {
     'Brussel Sprouts': '🥬',
     'Kiwi Cannoneer': '🥝',
     'Kelp Katapulter': '🌿',
+    'Corn Cobblazzio': '🌽',
     // Гир (6 штук)
     'Water Bucket': '💧',
     'Frost Grenade': '❄️',
     'Banana Gun': '🍌',
     'Frost Blower': '🌬️',
     'Carrot Launcher': '🥕',
-    'Battery Pack': '🔋'
+    'Battery Pack': '🔋',
+    'Explosive Cannon': '💥'
 };
 
 // ----- ИЗБРАННЫЕ ДЛЯ ПИНГА (ТВОИ) -----
@@ -56,12 +58,14 @@ const PREFERRED_SEEDS = [
     'Starfruit',
     'Brussel Sprouts',
     'Kiwi Cannoneer',
-    'Kelp Katapulter'
+    'Kelp Katapulter',
+    'Corn Cobblazzio'
 ];
 
 const PREFERRED_GEAR = [
     'Carrot Launcher',
-    'Battery Pack'
+    'Battery Pack',
+    'Explosive Cannon'
 ];
 
 // ----- ХРАНИЛИЩЕ ДАННЫХ -----
