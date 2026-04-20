@@ -372,14 +372,19 @@ client.on('ready', async () => {
     console.log('👀 Бот запущен и следит за каналами');
 
     while (true) {
+        const start = Date.now();
+
         try {
             await checkAll();
         } catch (err) {
             console.error('❌ Ошибка в цикле:', err.message);
         }
 
-        await new Promise(r => setTimeout(r, 30 * 1000));
-    }
+        const elapsed = Date.now() - start;
+        const delay = Math.max(0, 30000 - elapsed);
+
+        await new Promise(r => setTimeout(r, delay));
+        }
 });
 
 client.login(process.env.USER_TOKEN);
