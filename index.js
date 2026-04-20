@@ -106,9 +106,15 @@ async function saveState() {
 async function parseSeedsChannel(channelId) {
     try {
         const channel = client.channels.cache.get(channelId);
-        if (!channel) return { normal: null, admin: null };
+        if (!channel) {
+            return { normal: null, admin: null, normalMessageId: null, adminMessageId: null };
+        }
 
         const messages = await channel.messages.fetch({ limit: 5 });
+
+        // 🔥 сортируем от нового к старому
+        const sorted = Array.from(messages.values())
+            .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
 
         let normal = null;
         let admin = null;
@@ -116,19 +122,19 @@ async function parseSeedsChannel(channelId) {
         let normalMessageId = null;
         let adminMessageId = null;
 
-        for (const msg of messages.values()) {
+        for (const msg of sorted) {
             if (!msg.author.username.includes('PVB Stocks')) continue;
             if (!msg.embeds?.length) continue;
 
             const embed = msg.embeds[0];
             const title = embed.title?.toLowerCase() || '';
+            const description = embed.description;
 
-            if (!embed.description) continue;
+            if (!description) continue;
 
             const items = [];
-            const lines = embed.description.split('\n');
 
-            for (const line of lines) {
+            for (const line of description.split('\n')) {
                 const match = line.match(/-?\s*([\w\s]+?)\s*x(\d+)/i);
                 if (match) {
                     items.push({
@@ -140,13 +146,20 @@ async function parseSeedsChannel(channelId) {
 
             if (!items.length) continue;
 
-            if (title.includes('admin')) {
-                admin = items;
-                adminMessageId = msg.id;
-            } else {
+            // 🟢 обычный сток
+            if (!title.includes('admin') && !normal) {
                 normal = items;
                 normalMessageId = msg.id;
             }
+
+            // 🟠 админ сток
+            if (title.includes('admin') && !admin) {
+                admin = items;
+                adminMessageId = msg.id;
+            }
+
+            // 🚀 нашли оба — выходим сразу
+            if (normal && admin) break;
         }
 
         return { normal, admin, normalMessageId, adminMessageId };
@@ -165,18 +178,22 @@ async function parseChannel(channelId, type) {
 
         const messages = await channel.messages.fetch({ limit: 5 });
 
-        for (const msg of messages.values()) {
+        // 🔥 сортируем от нового к старому
+        const sorted = Array.from(messages.values())
+            .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
+
+        for (const msg of sorted) {
             if (!msg.author.username.includes('PVB Stocks')) continue;
             if (!msg.embeds?.length) continue;
 
             const embed = msg.embeds[0];
+            const description = embed.description;
 
-            if (!embed.description) continue;
+            if (!description) continue;
 
             const items = [];
-            const lines = embed.description.split('\n');
 
-            for (const line of lines) {
+            for (const line of description.split('\n')) {
                 const match = line.match(/-?\s*([\w\s]+?)\s*x(\d+)/i);
                 if (match) {
                     items.push({
@@ -187,6 +204,7 @@ async function parseChannel(channelId, type) {
             }
 
             if (items.length > 0) {
+                // 🟢 сразу берём САМЫЙ СВЕЖИЙ и выходим
                 return {
                     items,
                     messageId: msg.id
