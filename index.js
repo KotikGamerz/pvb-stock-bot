@@ -72,7 +72,9 @@ const PREFERRED_GEAR = [
 let stockData = {
     seeds: [],
     gear: [],
-    messageId: null
+    adminSeeds: [],
+    messageId: null,
+    lastAdminHash: null
 };
 
 // ===== ЗАГРУЗКА/СОХРАНЕНИЕ СОСТОЯНИЯ =====
@@ -80,9 +82,12 @@ async function loadState() {
     try {
         const data = await fs.readFile('state.json', 'utf8');
         const saved = JSON.parse(data);
+
         stockData.seeds = saved.seeds || [];
         stockData.gear = saved.gear || [];
         stockData.messageId = saved.messageId || null;
+        stockData.lastAdminHash = saved.lastAdminHash || null;
+
         console.log('📂 Загружено состояние');
     } catch (error) {
         console.log('🆕 Новое состояние');
@@ -93,49 +98,94 @@ async function saveState() {
     await fs.writeFile('state.json', JSON.stringify(stockData, null, 2));
 }
 
-// ===== ПАРСИНГ КАНАЛА =====
+// ===== ПАРСИНГ КАНАЛА SEED =====
+async function parseSeedsChannel(channelId) {
+    try {
+        const channel = client.channels.cache.get(channelId);
+        if (!channel) return { normal: null, admin: null };
+
+        const messages = await channel.messages.fetch({ limit: 5 });
+
+        let normal = null;
+        let admin = null;
+
+        for (const msg of messages.values()) {
+            if (!msg.author.username.includes('PVB Stocks')) continue;
+            if (!msg.embeds?.length) continue;
+
+            const embed = msg.embeds[0];
+            const title = embed.title?.toLowerCase() || '';
+
+            if (!embed.description) continue;
+
+            const items = [];
+            const lines = embed.description.split('\n');
+
+            for (const line of lines) {
+                const match = line.match(/-?\s*([\w\s]+?)\s*x(\d+)/i);
+                if (match) {
+                    items.push({
+                        name: match[1].trim(),
+                        count: parseInt(match[2])
+                    });
+                }
+            }
+
+            if (!items.length) continue;
+
+            if (title.includes('admin')) {
+                admin = items;
+            } else {
+                normal = items;
+            }
+        }
+
+        return { normal, admin };
+
+    } catch (err) {
+        console.error('Ошибка seeds:', err.message);
+        return { normal: null, admin: null };
+    }
+}
+
+// ===== ПАРСИНГ КАНАЛА GEAR =====
 async function parseChannel(channelId, type) {
     try {
         const channel = client.channels.cache.get(channelId);
-        if (!channel) {
-            console.log(`❌ Канал ${type} не найден`);
-            return null;
-        }
-        
+        if (!channel) return null;
+
         const messages = await channel.messages.fetch({ limit: 5 });
-        
+
         for (const msg of messages.values()) {
-            // Ищем сообщения от PVB Stocks
-            if (msg.author.username.includes('PVB Stocks') && msg.embeds && msg.embeds.length > 0) {
-                const embed = msg.embeds[0];
-                
-                if (embed.description) {
-                    const items = [];
-                    const lines = embed.description.split('\n');
-                    
-                    for (const line of lines) {
-                        // Парсим "- Cactus x4" или "Cactus x4"
-                        const match = line.match(/-?\s*([\w\s]+?)\s*x(\d+)/i);
-                        if (match) {
-                            items.push({
-                                name: match[1].trim(),
-                                count: parseInt(match[2])
-                            });
-                        }
-                    }
-                    
-                    if (items.length > 0) {
-                        console.log(`✅ Найдено ${type}: ${items.length} предметов`);
-                        return items;
-                    }
+            if (!msg.author.username.includes('PVB Stocks')) continue;
+            if (!msg.embeds?.length) continue;
+
+            const embed = msg.embeds[0];
+
+            if (!embed.description) continue;
+
+            const items = [];
+            const lines = embed.description.split('\n');
+
+            for (const line of lines) {
+                const match = line.match(/-?\s*([\w\s]+?)\s*x(\d+)/i);
+                if (match) {
+                    items.push({
+                        name: match[1].trim(),
+                        count: parseInt(match[2])
+                    });
                 }
             }
+
+            if (items.length > 0) {
+                return items;
+            }
         }
-        
-        console.log(`❌ Нет свежих данных в ${type}`);
+
         return null;
-    } catch (error) {
-        console.error(`Ошибка парсинга ${type}:`, error.message);
+
+    } catch (err) {
+        console.error(`Ошибка ${type}:`, err.message);
         return null;
     }
 }
@@ -199,93 +249,84 @@ async function sendToDiscord() {
         });
     }
     
-    const message = {
-        content: pingText.trim() || undefined,
-        embeds: [{
-            title: '🌱 PLANTS VS BRAINROTS | STOCK',
-            color: 0x00FF00,
-            fields: fields,
+    const embeds = [];
+
+// ===== EMBED 1 (обычный сток)
+embeds.push({
+    title: '🌱 PLANTS VS BRAINROTS | STOCK',
+    color: 0x00FF00,
+    fields: [
+        {
+            name: 'Seeds',
+            value: stockData.seeds.length
+                ? stockData.seeds.map(i => `• ${i.name} ${EMOJIS[i.name] || ''} — ${i.count}`).join('\n')
+                : '⚠️ No Data'
+        },
+        {
+            name: 'Gear',
+            value: stockData.gear.length
+                ? stockData.gear.map(i => `• ${i.name} ${EMOJIS[i.name] || ''} — ${i.count}`).join('\n')
+                : '⚠️ No Data'
+        }
+    ],
+    footer: {
+        text: `Last update: ${new Date().toLocaleTimeString()} UTC`
+    },
+    timestamp: new Date().toISOString()
+});
+
+// ===== EMBED 2 (admin)
+if (stockData.adminSeeds?.length) {
+    const adminHash = JSON.stringify(stockData.adminSeeds);
+
+    if (adminHash !== stockData.lastAdminHash) {
+        stockData.lastAdminHash = adminHash;
+
+        embeds.push({
+            title: 'Admin Machine Stock',
+            color: 0xFFAA00,
+            description: stockData.adminSeeds
+                .map(i => `- ${i.name} — ${i.count}`)
+                .join('\n'),
             footer: {
                 text: `Last update: ${new Date().toLocaleTimeString()} UTC`
             },
             timestamp: new Date().toISOString()
-        }]
-    };
-    
-    try {
-        if (stockData.messageId) {
-            await axios.patch(
-                `${process.env.TARGET_WEBHOOK_URL}/messages/${stockData.messageId}`,
-                message
-            );
-            console.log('✏️ Сообщение обновлено');
-        } else {
-            const response = await axios.post(process.env.TARGET_WEBHOOK_URL, message);
-            stockData.messageId = response.data.id;
-            await saveState();
-            console.log('📨 Новое сообщение создано');
-        }
-    } catch (error) {
-        console.error('❌ Ошибка отправки:', error.message);
-        if (error.response?.status === 404) {
-            stockData.messageId = null;
-            await saveState();
-        }
+        });
+
+        console.log('🛠 Новый ADMIN сток добавлен');
+    } else {
+        console.log('⏸️ Admin уже был — пропускаем');
     }
 }
+    await axios.post(process.env.TARGET_WEBHOOK_URL, {
+    content: pingText.trim() || undefined,
+    embeds
+});
 
+console.log('📨 Отправлено!');
+}
+    
 // ===== ОСНОВНАЯ ПРОВЕРКА =====
 async function checkAll() {
     console.log(`\n🕒 ${new Date().toLocaleTimeString()} - Проверка...`);
     
-    const newSeeds = await parseChannel(process.env.SEED_CHANNEL_ID, 'seeds');
+    const seedData = await parseSeedsChannel(process.env.SEED_CHANNEL_ID);
     const newGear = await parseChannel(process.env.GEAR_CHANNEL_ID, 'gear');
-    
-    let changed = false;
-    
-    // Сравниваем семена
-    if (newSeeds) {
-        // Проверяем, отличаются ли от того что уже есть
-        if (!stockData.seeds.length || JSON.stringify(newSeeds) !== JSON.stringify(stockData.seeds)) {
-            console.log('🔄 Семена изменились или появились впервые');
-            stockData.seeds = newSeeds;
-            changed = true;
-        } else {
-            console.log('⏺️ Семена те же');
-        }
-    } else {
-        if (stockData.seeds.length > 0) {
-            console.log('🔄 Семена пропали');
-            stockData.seeds = [];
-            changed = true;
-        }
-    }
-    
-    // Сравниваем гир
-    if (newGear) {
-        if (!stockData.gear.length || JSON.stringify(newGear) !== JSON.stringify(stockData.gear)) {
-            console.log('🔄 Гир изменился или появился впервые');
-            stockData.gear = newGear;
-            changed = true;
-        } else {
-            console.log('⏺️ Гир тот же');
-        }
-    } else {
-        if (stockData.gear.length > 0) {
-            console.log('🔄 Гир пропал');
-            stockData.gear = [];
-            changed = true;
-        }
-    }
-    
-    if (changed) {
-        console.log('📤 Отправляем обновление...');
-        await saveState();
-        await sendToDiscord();
-    } else {
-        console.log('⏺️ Без изменений');
-    }
+
+    const normalSeeds = seedData.normal;
+    const adminSeeds = seedData.admin;
+
+    stockData.seeds = normalSeeds || [];
+    stockData.gear = newGear || [];
+    stockData.adminSeeds = adminSeeds || [];
+
+    console.log('🚀 Новый сток (обычный + admin)');
+
+    await saveState();
+    await sendToDiscord();
 }
+    
 
 // ===== ЗАПУСК =====
 client.on('ready', async () => {
@@ -295,14 +336,20 @@ client.on('ready', async () => {
     client.guilds.cache.forEach(guild => {
         console.log(`🔹 ${guild.name} (${guild.id})`);
     });
-    
+
     await loadState();
-    await checkAll();
-    
-    // Проверка каждые 30 секунд
-    setInterval(checkAll, 30 * 1000);
-    
+
     console.log('👀 Бот запущен и следит за каналами');
+
+    while (true) {
+        try {
+            await checkAll();
+        } catch (err) {
+            console.error('❌ Ошибка в цикле:', err.message);
+        }
+
+        await new Promise(r => setTimeout(r, 30 * 1000));
+    }
 });
 
 client.login(process.env.USER_TOKEN);
