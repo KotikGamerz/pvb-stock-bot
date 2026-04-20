@@ -73,8 +73,10 @@ let stockData = {
     seeds: [],
     gear: [],
     adminSeeds: [],
-    messageId: null,
-    lastAdminHash: null
+    lastAdminHash: null,
+
+    lastSeedMessageId: null,
+    lastGearMessageId: null
 };
 
 // ===== ЗАГРУЗКА/СОХРАНЕНИЕ СОСТОЯНИЯ =====
@@ -87,6 +89,8 @@ async function loadState() {
         stockData.gear = saved.gear || [];
         stockData.messageId = saved.messageId || null;
         stockData.lastAdminHash = saved.lastAdminHash || null;
+        stockData.lastSeedMessageId = saved.lastSeedMessageId || null;
+        stockData.lastGearMessageId = saved.lastGearMessageId || null;
 
         console.log('📂 Загружено состояние');
     } catch (error) {
@@ -108,6 +112,9 @@ async function parseSeedsChannel(channelId) {
 
         let normal = null;
         let admin = null;
+
+        let normalMessageId = null;
+        let adminMessageId = null;
 
         for (const msg of messages.values()) {
             if (!msg.author.username.includes('PVB Stocks')) continue;
@@ -135,16 +142,18 @@ async function parseSeedsChannel(channelId) {
 
             if (title.includes('admin')) {
                 admin = items;
+                adminMessageId = msg.id;
             } else {
                 normal = items;
+                normalMessageId = msg.id;
             }
         }
 
-        return { normal, admin };
+        return { normal, admin, normalMessageId, adminMessageId };
 
     } catch (err) {
         console.error('Ошибка seeds:', err.message);
-        return { normal: null, admin: null };
+        return { normal: null, admin: null, normalMessageId: null, adminMessageId: null };
     }
 }
 
@@ -178,7 +187,10 @@ async function parseChannel(channelId, type) {
             }
 
             if (items.length > 0) {
-                return items;
+                return {
+                    items,
+                    messageId: msg.id
+                };
             }
         }
 
@@ -312,21 +324,39 @@ async function checkAll() {
     console.log(`\n🕒 ${new Date().toLocaleTimeString()} - Проверка...`);
     
     const seedData = await parseSeedsChannel(process.env.SEED_CHANNEL_ID);
-    const newGear = await parseChannel(process.env.GEAR_CHANNEL_ID, 'gear');
+    const gearData = await parseChannel(process.env.GEAR_CHANNEL_ID, 'gear');
 
     const normalSeeds = seedData.normal;
     const adminSeeds = seedData.admin;
 
+    const seedMsgId = seedData.normalMessageId;
+    const gearMsgId = gearData?.messageId;
+
+    const newGear = gearData?.items;
+
+    // 🚫 проверка: новый ли это сток
+    if (
+        seedMsgId === stockData.lastSeedMessageId &&
+        gearMsgId === stockData.lastGearMessageId
+    ) {
+        console.log('⏸️ Тот же самый сток — пропускаем');
+        return;
+    }
+
+    // 💾 сохраняем новые ID
+    stockData.lastSeedMessageId = seedMsgId;
+    stockData.lastGearMessageId = gearMsgId;
+
+    // обновляем данные
     stockData.seeds = normalSeeds || [];
     stockData.gear = newGear || [];
     stockData.adminSeeds = adminSeeds || [];
 
-    console.log('🚀 Новый сток (обычный + admin)');
+    console.log('🚀 Новый сток (по messageId)');
 
     await saveState();
     await sendToDiscord();
 }
-    
 
 // ===== ЗАПУСК =====
 client.on('ready', async () => {
