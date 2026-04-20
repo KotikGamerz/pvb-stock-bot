@@ -409,7 +409,7 @@ async function checkAll() {
     } else {
         if (!isTopOfHour) {
             console.log('⚡ Не начало часа — без задержки');
-        } else if (hasAdmin) {
+        } else if (hasNewAdmin) {
             console.log('⚡ Админ уже есть — без задержки');
         }
     }
