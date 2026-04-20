@@ -269,13 +269,13 @@ embeds.push({
     color: 0x00FF00,
     fields: [
         {
-            name: 'Seeds',
+            name: '🌾 SEEDS',
             value: stockData.seeds.length
                 ? stockData.seeds.map(i => `• ${i.name} ${EMOJIS[i.name] || ''} — ${i.count}`).join('\n')
                 : '⚠️ No Data'
         },
         {
-            name: 'Gear',
+            name: '⚙️ GEAR',
             value: stockData.gear.length
                 ? stockData.gear.map(i => `• ${i.name} ${EMOJIS[i.name] || ''} — ${i.count}`).join('\n')
                 : '⚠️ No Data'
