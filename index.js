@@ -406,7 +406,7 @@ async function checkAll() {
         } else {
            console.log('⚠️ Админ всё ещё не появился');
         }
-    } else {
+        } else {
         if (!isTopOfHour) {
             console.log('⚡ Не начало часа — без задержки');
         } else if (hasNewAdmin) {
