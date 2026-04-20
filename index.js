@@ -339,7 +339,7 @@ if (stockData.adminSeeds?.length) {
 console.log('📨 Отправлено!');
 }
     
-// ===== ОСНОВНАЯ ПРОВЕРКА =====
+// = Основная проверка =
 async function checkAll() {
     console.log(`\n🕒 ${new Date().toLocaleTimeString()} - Проверка...`);
     
@@ -355,7 +355,7 @@ async function checkAll() {
 
     const newGear = gearData?.items;
 
-    // 🚫 проверка: новый ли это сток
+    // 🚫 новый ли это сток (по messageId)
     if (
         seedMsgId === stockData.lastSeedMessageId &&
         gearMsgId === stockData.lastGearMessageId
@@ -364,7 +364,7 @@ async function checkAll() {
         return;
     }
 
-    // 💾 сохраняем новые ID
+    // 💾 сохраняем ID
     stockData.lastSeedMessageId = seedMsgId;
     stockData.lastGearMessageId = gearMsgId;
 
@@ -373,28 +373,24 @@ async function checkAll() {
     stockData.gear = newGear || [];
     stockData.adminSeeds = adminSeeds || [];
 
-    // 👇 ВСТАВЛЯЕМ СРАЗУ ПОСЛЕ
-    if (adminMsgId) {
-        stockData.lastAdminMessageId = adminMsgId;
-    }
-
     console.log('🚀 Новый сток (по messageId)');
 
+    // 🧠 время
     const now = new Date();
     const minutes = now.getMinutes();
     const seconds = now.getSeconds();
 
-    // 🧠 проверка: начало часа?
+    // 🧠 начало часа?
     const isTopOfHour = minutes === 0;
 
-    // 🧠 есть ли уже админ?
+    // 🧠 новый ли админ
     const hasNewAdmin = adminMsgId && adminMsgId !== stockData.lastAdminMessageId;
 
     // 🧠 УМНАЯ ЗАДЕРЖКА
-    if (isTopOfHour && !hasNewAdmin && seconds < 20)
+    if (isTopOfHour && !hasNewAdmin && seconds < 20) {
         console.log('⏳ Начало часа и админ ещё не пришёл — ждём...');
 
-        await new Promise(r => setTimeout(r, 6000)); // 6 сек
+        await new Promise(r => setTimeout(r, 6000));
 
         // 🔄 повторный парсинг
         const retrySeedData = await parseSeedsChannel(process.env.SEED_CHANNEL_ID);
@@ -404,14 +400,19 @@ async function checkAll() {
             stockData.lastAdminMessageId = retrySeedData.adminMessageId;
             console.log('✅ Админ сток появился после ожидания');
         } else {
-           console.log('⚠️ Админ всё ещё не появился');
+            console.log('⚠️ Админ всё ещё не появился');
         }
-        } else {
-        if (!isTopOfHour) {
-            console.log('⚡ Не начало часа — без задержки');
-        } else if (hasNewAdmin) {
-            console.log('⚡ Админ уже есть — без задержки');
-        }
+
+    } else if (!isTopOfHour) {
+        console.log('⚡ Не начало часа — без задержки');
+
+    } else if (hasNewAdmin) {
+        console.log('⚡ Админ уже есть — без задержки');
+    }
+
+    // 💾 фиксируем admin после всей логики
+    if (adminMsgId) {
+        stockData.lastAdminMessageId = adminMsgId;
     }
 
     await saveState();
