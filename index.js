@@ -302,7 +302,7 @@ embeds.push({
         }
     ],
     footer: {
-        text: `Last update: ${new Date().toLocaleTimeString()} UTC`
+        text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
     },
     timestamp: new Date().toISOString()
 });
@@ -321,7 +321,7 @@ if (stockData.adminSeeds?.length) {
                 .map(i => `- ${i.name} — ${i.count}`)
                 .join('\n'),
             footer: {
-                text: `Last update: ${new Date().toLocaleTimeString()} UTC`
+                text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
             },
             timestamp: new Date().toISOString()
         });
