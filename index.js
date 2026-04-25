@@ -286,7 +286,7 @@ async function sendToDiscord() {
 // ===== EMBED 1 (обычный сток)
 const embed = {
     title: "🌱 PLANTS VS BRAINROTS | STOCK",
-    color: 0x00ff00,
+    color: 0x3498db,
     fields: [],
     footer: {
         text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
