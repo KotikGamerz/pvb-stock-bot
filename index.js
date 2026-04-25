@@ -284,29 +284,44 @@ async function sendToDiscord() {
     const embeds = [];
 
 // ===== EMBED 1 (обычный сток)
-embeds.push({
-    title: '🌱 PLANTS VS BRAINROTS | STOCK',
-    color: 0x00FF00,
-    fields: [
-        {
-            name: '🌾 SEEDS',
-            value: stockData.seeds.length
-                ? stockData.seeds.map(i => `• ${i.name} ${EMOJIS[i.name] || ''} — ${i.count}`).join('\n')
-                : '⚠️ No Data'
-        },
-        {
-            name: '⚙️ GEAR',
-            value: stockData.gear.length
-                ? stockData.gear.map(i => `• ${i.name} ${EMOJIS[i.name] || ''} — ${i.count}`).join('\n')
-                : '⚠️ No Data'
-        }
-    ],
+const embed = {
+    title: "🌱 PLANTS VS BRAINROTS | STOCK",
+    color: 0x00ff00,
+    fields: [],
     footer: {
         text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
     },
     timestamp: new Date().toISOString()
-});
+};
 
+// 🌾 SEEDS
+if (stockData.seeds.length > 0) {
+    const seedText = stockData.seeds
+        .map(i => `- ${EMOJIS[i.name] || ""} ${i.name} — ${i.count}`)
+        .join('\n');
+
+    embed.fields.push({
+        name: "🌾 SEEDS",
+        value: seedText,
+        inline: false
+    });
+}
+
+// ⚙️ GEAR
+if (stockData.gear.length > 0) {
+    const gearText = stockData.gear
+        .map(i => `- ${EMOJIS[i.name] || ""} ${i.name} — ${i.count}`)
+        .join('\n');
+
+    embed.fields.push({
+        name: "⚙️ GEAR",
+        value: gearText,
+        inline: false
+    });
+}
+
+embeds.push(embed);
+    
 // ===== EMBED 2 (admin)
 if (stockData.adminSeeds?.length) {
     const adminHash = JSON.stringify(stockData.adminSeeds);
@@ -315,11 +330,17 @@ if (stockData.adminSeeds?.length) {
         stockData.lastAdminHash = adminHash;
 
         embeds.push({
-            title: 'Admin Machine Stock',
-            color: 0xFFAA00,
-            description: stockData.adminSeeds
-                .map(i => `- ${i.name} — ${i.count}`)
-                .join('\n'),
+            title: '🛠 ADMIN STOCK',
+            color: 0xffaa00,
+            fields: [
+                {
+                    name: "🛠 ADMIN",
+                    value: stockData.adminSeeds
+                        .map(i => `- ${i.name} — ${i.count}`)
+                        .join('\n'),
+                    inline: false
+                }
+            ],
             footer: {
                 text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
             },
