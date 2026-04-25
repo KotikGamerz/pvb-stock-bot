@@ -331,16 +331,10 @@ if (stockData.adminSeeds?.length) {
 
         embeds.push({
             title: '🛠 ADMIN STOCK',
-            color: 0xffaa00,
-            fields: [
-                {
-                    name: "🛠 ADMIN",
-                    value: stockData.adminSeeds
-                        .map(i => `- ${i.name} — ${i.count}`)
-                        .join('\n'),
-                    inline: false
-                }
-            ],
+            color: 0xff3b3b,
+            description: stockData.adminSeeds
+                .map(i => `- ${EMOJIS[i.name] || ""} ${i.name} — ${i.count}`)
+                .join('\n'),
             footer: {
                 text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
             },
