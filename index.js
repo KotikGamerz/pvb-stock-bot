@@ -80,6 +80,7 @@ let stockData = {
     lastAdminMessageId: null
 };
 let shouldIncludeAdmin = false;
+let isChecking = false;
 
 // ===== ЗАГРУЗКА/СОХРАНЕНИЕ СОСТОЯНИЯ =====
 async function loadState() {
