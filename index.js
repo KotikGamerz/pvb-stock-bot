@@ -79,6 +79,7 @@ let stockData = {
     lastGearMessageId: null,
     lastAdminMessageId: null
 };
+let shouldIncludeAdmin = false;
 
 // ===== ЗАГРУЗКА/СОХРАНЕНИЕ СОСТОЯНИЯ =====
 async function loadState() {
@@ -323,7 +324,7 @@ if (stockData.gear.length > 0) {
 embeds.push(embed);
     
 // ===== EMBED 2 (admin)
-if (stockData.adminSeeds?.length) {
+if (shouldIncludeAdmin && stockData.adminSeeds?.length) {
     const adminHash = JSON.stringify(stockData.adminSeeds);
 
     if (adminHash !== stockData.lastAdminHash) {
@@ -357,83 +358,70 @@ console.log('📨 Отправлено!');
 // = Основная проверка =
 async function checkAll() {
     console.log(`\n🕒 ${new Date().toLocaleTimeString()} - Проверка...`);
-    
-    const seedData = await parseSeedsChannel(process.env.SEED_CHANNEL_ID);
-    const gearData = await parseChannel(process.env.GEAR_CHANNEL_ID, 'gear');
 
-    const normalSeeds = seedData.normal;
-    const adminSeeds = seedData.admin;
-    const adminMsgId = seedData.adminMessageId;
+    if (isChecking) return;
+    isChecking = true;
 
-    const seedMsgId = seedData.normalMessageId;
-    const gearMsgId = gearData?.messageId;
+    try {
+        const seedData = await parseSeedsChannel(process.env.SEED_CHANNEL_ID);
+        const gearData = await parseChannel(process.env.GEAR_CHANNEL_ID, 'gear');
 
-    const newGear = gearData?.items;
+        const normalSeeds = seedData.normal;
+        const adminSeeds = seedData.admin;
+        const adminMsgId = seedData.adminMessageId;
 
-    // 🚫 новый ли это сток (по messageId)
-    if (
-        seedMsgId === stockData.lastSeedMessageId &&
-        gearMsgId === stockData.lastGearMessageId &&
-        adminMsgId === stockData.lastAdminMessageId
-    ) {
-        console.log('⏸️ Тот же самый сток — пропускаем');
-        return;
-    }
+        const seedMsgId = seedData.normalMessageId;
+        const gearMsgId = gearData?.messageId;
 
-    // 💾 сохраняем ID
-    stockData.lastSeedMessageId = seedMsgId;
-    stockData.lastGearMessageId = gearMsgId;
-    stockData.lastAdminMessageId = adminMsgId;
+        const newGear = gearData?.items;
 
-    // обновляем данные
-    stockData.seeds = normalSeeds || [];
-    stockData.gear = newGear || [];
-    stockData.adminSeeds = adminSeeds || [];
+        // 🧠 ВРЕМЯ
+        const now = new Date();
+        const isTopOfHour = now.getMinutes() === 0;
 
-    console.log('🚀 Новый сток (по messageId)');
+        // 🧠 НОВЫЙ ЛИ ADMIN
+        const isNewAdmin = adminMsgId && adminMsgId !== stockData.lastAdminMessageId;
 
-    // 🧠 время
-    const now = new Date();
-    const minutes = now.getMinutes();
-    const seconds = now.getSeconds();
+        // 🧠 РЕШЕНИЕ
+        shouldIncludeAdmin = isTopOfHour && isNewAdmin;
 
-    // 🧠 начало часа?
-    const isTopOfHour = minutes === 0;
-
-    // 🧠 новый ли админ
-    const hasNewAdmin = adminMsgId && adminMsgId !== stockData.lastAdminMessageId;
-
-    // 🧠 УМНАЯ ЗАДЕРЖКА
-    if (isTopOfHour && !hasNewAdmin && seconds < 20) {
-        console.log('⏳ Начало часа и админ ещё не пришёл — ждём...');
-
-        await new Promise(r => setTimeout(r, 6000));
-
-        // 🔄 повторный парсинг
-        const retrySeedData = await parseSeedsChannel(process.env.SEED_CHANNEL_ID);
-
-        if (retrySeedData.admin && retrySeedData.admin.length > 0) {
-            stockData.adminSeeds = retrySeedData.admin;
-            stockData.lastAdminMessageId = retrySeedData.adminMessageId;
-            console.log('✅ Админ сток появился после ожидания');
-        } else {
-            console.log('⚠️ Админ всё ещё не появился');
+        if (shouldIncludeAdmin) {
+            console.log('🛠 ADMIN будет добавлен');
         }
 
-    } else if (!isTopOfHour) {
-        console.log('⚡ Не начало часа — без задержки');
+        // 🚫 ПРОВЕРКА СТОКА
+        const isSameStock =
+            seedMsgId === stockData.lastSeedMessageId &&
+            gearMsgId === stockData.lastGearMessageId;
 
-    } else if (hasNewAdmin) {
-        console.log('⚡ Админ уже есть — без задержки');
+        if (isSameStock && !shouldIncludeAdmin) {
+            console.log('⏸️ Тот же сток — пропускаем');
+            return;
+        }
+
+        // 💾 ID
+        stockData.lastSeedMessageId = seedMsgId;
+        stockData.lastGearMessageId = gearMsgId;
+
+        if (adminMsgId) {
+            stockData.lastAdminMessageId = adminMsgId;
+        }
+
+        // 💾 ДАННЫЕ
+        stockData.seeds = normalSeeds || [];
+        stockData.gear = newGear || [];
+        stockData.adminSeeds = adminSeeds || [];
+
+        console.log('🚀 Отправляем сток');
+
+        await saveState();
+        await sendToDiscord();
+
+    } catch (err) {
+        console.error('❌ Ошибка:', err.message);
+    } finally {
+        isChecking = false;
     }
-
-    // 💾 фиксируем admin после всей логики
-    if (adminMsgId) {
-        stockData.lastAdminMessageId = adminMsgId;
-    }
-
-    await saveState();
-    await sendToDiscord();
 }
 
 function startSmartScheduler() {
