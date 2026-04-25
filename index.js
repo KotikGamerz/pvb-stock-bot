@@ -379,7 +379,8 @@ async function checkAll() {
     // 🚫 новый ли это сток (по messageId)
     if (
         seedMsgId === stockData.lastSeedMessageId &&
-        gearMsgId === stockData.lastGearMessageId
+        gearMsgId === stockData.lastGearMessageId &&
+        adminMsgId === stockData.lastAdminMessageId
     ) {
         console.log('⏸️ Тот же самый сток — пропускаем');
         return;
@@ -388,6 +389,7 @@ async function checkAll() {
     // 💾 сохраняем ID
     stockData.lastSeedMessageId = seedMsgId;
     stockData.lastGearMessageId = gearMsgId;
+    stockData.lastAdminMessageId = adminMsgId;
 
     // обновляем данные
     stockData.seeds = normalSeeds || [];
@@ -440,33 +442,67 @@ async function checkAll() {
     await sendToDiscord();
 }
 
-// ===== ЗАПУСК =====
+function startSmartScheduler() {
+
+    const scheduleNext = () => {
+        const now = new Date();
+        const seconds = now.getSeconds();
+
+        let targetSecond;
+
+        if (seconds < 20) targetSecond = 20;
+        else if (seconds < 50) targetSecond = 50;
+        else targetSecond = 80; // 60 + 20
+
+        let delay = (targetSecond - seconds) * 1000;
+
+        console.log(`⏱️ Следующая проверка через ${delay / 1000}s`);
+
+        setTimeout(async () => {
+            try {
+                await checkAll();
+            } catch (err) {
+                console.error('❌ Ошибка в scheduler:', err.message);
+            }
+
+            scheduleNext();
+        }, delay);
+    };
+
+    scheduleNext();
+}
+
 client.on('ready', async () => {
     console.log(`✅ Залогинен как ${client.user.tag}`);
-    
+
     console.log('\n📋 Доступные сервера:');
     client.guilds.cache.forEach(guild => {
         console.log(`🔹 ${guild.name} (${guild.id})`);
     });
 
+    // загрузка состояния
     await loadState();
 
-    console.log('👀 Бот запущен и следит за каналами');
+    console.log('👀 PvB бот запущен');
+    console.log('🧠 Smart scheduler запущен');
 
-    while (true) {
-        const start = Date.now();
-
-        try {
-            await checkAll();
-        } catch (err) {
-            console.error('❌ Ошибка в цикле:', err.message);
-        }
-
-        const elapsed = Date.now() - start;
-        const delay = Math.max(0, 30000 - elapsed);
-
-        await new Promise(r => setTimeout(r, delay));
-        }
+    startSmartScheduler();
 });
 
-client.login(process.env.USER_TOKEN);
+client.on('error', (err) => {
+    console.error("❌ CLIENT ERROR:", err);
+});
+
+client.on('disconnect', () => {
+    console.log("🔌 DISCONNECTED");
+});
+
+client.on('rateLimit', (info) => {
+    console.log("⏳ RATE LIMIT:", info);
+});
+
+console.log("🔑 TOKEN:", process.env.USER_TOKEN ? "есть" : "нет");
+
+client.login(process.env.USER_TOKEN)
+    .then(() => console.log("📲 login() вызван успешно"))
+    .catch(err => console.error("❌ LOGIN ERROR:", err));
