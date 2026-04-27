@@ -49,7 +49,7 @@ const EMOJIS = {
     'Frost Blower': '🌬️',
     'Carrot Launcher': '🥕',
     'Battery Pack': '🔋',
-    'Explosive Cannon': '💥'
+    'ExplosiveCannon': '💥'
 };
 
 // ----- ИЗБРАННЫЕ ДЛЯ ПИНГА (ТВОИ) -----
@@ -65,7 +65,7 @@ const PREFERRED_SEEDS = [
 const PREFERRED_GEAR = [
     'Carrot Launcher',
     'Battery Pack',
-    'Explosive Cannon'
+    'ExplosiveCannon'
 ];
 
 const ROLE_IDS = {
@@ -74,8 +74,12 @@ const ROLE_IDS = {
     "Brussel Sprouts": "1479603143284363383",
     "Kiwi Cannoneer": "1479603147017031713",
     "Kelp Katapulter": "1479603149928136936",
-    "Corn Cobblazzio": "1498271683294003320"
+    "Corn Cobblazzio": "1498271683294003320",
+    "Carrot Launcher": "1498274230050226277",
+    "Battery Pack": "1498275323169603697",
+    "ExplosiveCannon": "1498275448776560690"
 };
+ 
 
 // ----- ХРАНИЛИЩЕ ДАННЫХ -----
 let stockData = {
