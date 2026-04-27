@@ -68,6 +68,15 @@ const PREFERRED_GEAR = [
     'Explosive Cannon'
 ];
 
+const ROLE_IDS = {
+    "King Limone": "1479603135281627329",
+    "Starfruit": "1479603138813235220",
+    "Brussel Sprouts": "1479603143284363383",
+    "Kiwi Cannoneer": "1479603147017031713",
+    "Kelp Katapulter": "1479603149928136936",
+    "Corn Cobblazzio": "1498271683294003320"
+};
+
 // ----- ХРАНИЛИЩЕ ДАННЫХ -----
 let stockData = {
     seeds: [],
@@ -241,16 +250,18 @@ async function sendToDiscord() {
         // Семена
         for (const item of stockData.seeds) {
             if (PREFERRED_SEEDS.includes(item.name)) {
-                const role = myGuild.roles.cache.find(r => r.name === item.name);
-                if (role) pingText += `<@&${role.id}> `;
+                if (ROLE_IDS[item.name]) {
+                    pingText += `<@&${ROLE_IDS[item.name]}> `;
+                }
             }
         }
         
         // Гир
         for (const item of stockData.gear) {
             if (PREFERRED_GEAR.includes(item.name)) {
-                const role = myGuild.roles.cache.find(r => r.name === item.name);
-                if (role) pingText += `<@&${role.id}> `;
+                if (ROLE_IDS[item.name]) {
+                    pingText += `<@&${ROLE_IDS[item.name]}> `;
+                }
             }
         }
     }
