@@ -399,7 +399,7 @@ async function checkAll() {
         const isNewAdmin = adminMsgId && adminMsgId !== stockData.lastAdminMessageId;
 
         // 🧠 РЕШЕНИЕ
-        shouldIncludeAdmin = isTopOfHour && isNewAdmin;
+        shouldIncludeAdmin = isNewAdmin;
 
         if (shouldIncludeAdmin) {
             console.log('🛠 ADMIN будет добавлен');
