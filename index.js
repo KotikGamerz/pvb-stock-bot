@@ -243,135 +243,115 @@ async function sendToDiscord() {
         console.log('⏳ Нет данных для отправки');
         return;
     }
-    
-    // Ищем свой сервер по ID
-    const myGuild = client.guilds.cache.get(process.env.GUILD_ID);
-    
-    let pingText = '';
-    
-    // Формируем пинги ТОЛЬКО для избранных (если есть роли)
-    if (myGuild) {
-        // Семена
-        for (const item of stockData.seeds) {
-            if (PREFERRED_SEEDS.includes(item.name)) {
-                if (ROLE_IDS[item.name]) {
-                    pingText += `<@&${ROLE_IDS[item.name]}> `;
-                }
-            }
-        }
-        
-        // Гир
-        for (const item of stockData.gear) {
-            if (PREFERRED_GEAR.includes(item.name)) {
-                if (ROLE_IDS[item.name]) {
-                    pingText += `<@&${ROLE_IDS[item.name]}> `;
-                }
+
+    // =========================
+    // 🔔 ПИНГИ (без myGuild)
+    // =========================
+    let pingSet = new Set();
+
+    // 🌾 SEEDS
+    for (const item of stockData.seeds) {
+        if (PREFERRED_SEEDS.includes(item.name)) {
+            if (ROLE_IDS[item.name]) {
+                pingSet.add(`<@&${ROLE_IDS[item.name]}>`);
+            } else {
+                console.log("❌ Нет ROLE_ID для:", item.name);
             }
         }
     }
-    
-    const fields = [];
-    
-    // Семена
-    if (stockData.seeds.length) {
-        const seedText = stockData.seeds
-            .map(item => `• ${item.name} ${EMOJIS[item.name] || ''} — ${item.count}`)
-            .join('\n');
-        
-        fields.push({
-            name: '🌾 SEEDS',
-            value: seedText,
-            inline: false
-        });
+
+    // ⚙️ GEAR
+    for (const item of stockData.gear) {
+        if (PREFERRED_GEAR.includes(item.name)) {
+            if (ROLE_IDS[item.name]) {
+                pingSet.add(`<@&${ROLE_IDS[item.name]}>`);
+            } else {
+                console.log("❌ Нет ROLE_ID для:", item.name);
+            }
+        }
     }
-    
-    // Гир
-    if (stockData.gear.length) {
-        const gearText = stockData.gear
-            .map(item => `• ${item.name} ${EMOJIS[item.name] || ''} — ${item.count}`)
-            .join('\n');
-        
-        fields.push({
-            name: '⚙️ GEAR',
-            value: gearText,
-            inline: false
-        });
-    }
-    
-    const embeds = [];
 
-// ===== EMBED 1 (обычный сток)
-const embed = {
-    title: "🌱 PLANTS VS BRAINROTS | STOCK",
-    color: 0x3498db,
-    fields: [],
-    footer: {
-        text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
-    },
-    timestamp: new Date().toISOString()
-};
+    const pingText = [...pingSet].join(' ');
 
-// 🌾 SEEDS
-if (stockData.seeds.length > 0) {
-    const seedText = stockData.seeds
-        .map(i => `- ${EMOJIS[i.name] || ""} ${i.name} — ${i.count}`)
-        .join('\n');
+    // =========================
+    // 📦 ОСНОВНОЙ EMBED
+    // =========================
+    const now = new Date();
 
-    embed.fields.push({
-        name: "🌾 SEEDS",
-        value: seedText,
-        inline: false
-    });
-}
+    const embed = {
+        title: "🌱 PLANTS VS BRAINROTS | STOCK",
+        color: 0x3498db,
+        fields: [],
+        footer: {
+            text: `Last update: ${now.toLocaleTimeString('en-GB')} UTC`
+        },
+        timestamp: now.toISOString()
+    };
 
-// ⚙️ GEAR
-if (stockData.gear.length > 0) {
-    const gearText = stockData.gear
-        .map(i => `- ${EMOJIS[i.name] || ""} ${i.name} — ${i.count}`)
-        .join('\n');
-
-    embed.fields.push({
-        name: "⚙️ GEAR",
-        value: gearText,
-        inline: false
-    });
-}
-
-embeds.push(embed);
-    
-// ===== EMBED 2 (admin)
-if (shouldIncludeAdmin && stockData.adminSeeds?.length) {
-    const adminHash = JSON.stringify(stockData.adminSeeds);
-
-    if (adminHash !== stockData.lastAdminHash) {
-        stockData.lastAdminHash = adminHash;
-
-        embeds.push({
-            title: '🛠 ADMIN STOCK',
-            color: 0xff3b3b,
-            description: stockData.adminSeeds
+    // 🌾 SEEDS
+    if (stockData.seeds.length > 0) {
+        embed.fields.push({
+            name: "🌾 SEEDS",
+            value: stockData.seeds
                 .map(i => `- ${EMOJIS[i.name] || ""} ${i.name} — ${i.count}`)
                 .join('\n'),
-            footer: {
-                text: `Last update: ${new Date().toLocaleTimeString('en-GB')} UTC`
-            },
-            timestamp: new Date().toISOString()
+            inline: false
         });
-
-        console.log('🛠 Новый ADMIN сток добавлен');
-    } else {
-        console.log('⏸️ Admin уже был — пропускаем');
     }
-}
-    await axios.post(process.env.TARGET_WEBHOOK_URL, {
-    content: pingText.trim() || undefined,
-    embeds
-});
 
-console.log('📨 Отправлено!');
+    // ⚙️ GEAR
+    if (stockData.gear.length > 0) {
+        embed.fields.push({
+            name: "⚙️ GEAR",
+            value: stockData.gear
+                .map(i => `- ${EMOJIS[i.name] || ""} ${i.name} — ${i.count}`)
+                .join('\n'),
+            inline: false
+        });
+    }
+
+    const embeds = [embed];
+
+    // =========================
+    // 🛠 ADMIN EMBED
+    // =========================
+    if (shouldIncludeAdmin && stockData.adminSeeds?.length) {
+
+        const adminHash = JSON.stringify(stockData.adminSeeds);
+
+        if (adminHash !== stockData.lastAdminHash) {
+            stockData.lastAdminHash = adminHash;
+
+            embeds.push({
+                title: '🛠 ADMIN STOCK',
+                color: 0xff3b3b,
+                description: stockData.adminSeeds
+                    .map(i => `- ${EMOJIS[i.name] || ""} ${i.name} — ${i.count}`)
+                    .join('\n'),
+                footer: {
+                    text: `Last update: ${now.toLocaleTimeString('en-GB')} UTC`
+                },
+                timestamp: now.toISOString()
+            });
+
+            console.log('🛠 Новый ADMIN сток добавлен');
+        } else {
+            console.log('⏸️ Admin уже был — пропускаем');
+        }
+    }
+
+    // =========================
+    // 📤 ОТПРАВКА
+    // =========================
+    await axios.post(process.env.TARGET_WEBHOOK_URL, {
+        content: pingText || undefined,
+        embeds
+    });
+
+    console.log('📨 Отправлено!');
 }
     
-// = Основная проверка =
+// ===== ОСНОВНАЯ ПРОВЕРКА =====
 async function checkAll() {
     console.log(`\n🕒 ${new Date().toLocaleTimeString()} - Проверка...`);
 
