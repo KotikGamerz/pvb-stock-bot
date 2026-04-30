@@ -316,25 +316,23 @@ async function sendToDiscord() {
     // =========================
     // 🛠 ADMIN EMBED
     // =========================
+    // =========================
+    // 🛠 ADMIN EMBED (чистый)
+    // =========================
     if (shouldIncludeAdmin && stockData.adminSeeds?.length) {
+        embeds.push({
+            title: '🛠 ADMIN STOCK',
+            color: 0xff3b3b,
+            description: stockData.adminSeeds
+                .map(i => `- ${EMOJIS[i.name] || ""} ${i.name} — ${i.count}`)
+                .join('\n'),
+            footer: {
+                text: `Last update: ${now.toLocaleTimeString('en-GB')} UTC`
+            },
+            timestamp: now.toISOString()
+        });
 
-        const adminHash = JSON.stringify(stockData.adminSeeds);
-
-        if (shouldIncludeAdmin && stockData.adminSeeds?.length) {
-            embeds.push({
-                title: '🛠 ADMIN STOCK',
-                color: 0xff3b3b,
-                description: stockData.adminSeeds
-                    .map(i => `- ${EMOJIS[i.name] || ""} ${i.name} — ${i.count}`)
-                    .join('\n'),
-                footer: {
-                    text: `Last update: ${now.toLocaleTimeString('en-GB')} UTC`
-                },
-                timestamp: now.toISOString()
-            });
-
-    console.log('🛠 ADMIN добавлен');
-        }
+        console.log('🛠 ADMIN добавлен в embed');
     }
 
     // =========================
