@@ -94,6 +94,7 @@ let stockData = {
 };
 let shouldIncludeAdmin = false;
 let isChecking = false;
+let lastAdminSentHour = null;
 
 // ===== ЗАГРУЗКА/СОХРАНЕНИЕ СОСТОЯНИЯ =====
 async function loadState() {
@@ -319,9 +320,7 @@ async function sendToDiscord() {
 
         const adminHash = JSON.stringify(stockData.adminSeeds);
 
-        if (adminHash !== stockData.lastAdminHash) {
-            stockData.lastAdminHash = adminHash;
-
+        if (shouldIncludeAdmin && stockData.adminSeeds?.length) {
             embeds.push({
                 title: '🛠 ADMIN STOCK',
                 color: 0xff3b3b,
@@ -334,9 +333,7 @@ async function sendToDiscord() {
                 timestamp: now.toISOString()
             });
 
-            console.log('🛠 Новый ADMIN сток добавлен');
-        } else {
-            console.log('⏸️ Admin уже был — пропускаем');
+    console.log('🛠 ADMIN добавлен');
         }
     }
 
@@ -373,13 +370,16 @@ async function checkAll() {
 
         // 🧠 ВРЕМЯ
         const now = new Date();
+        const currentHour = now.getUTCHours();
         const isTopOfHour = now.getMinutes() === 0;
 
-        // 🧠 НОВЫЙ ЛИ ADMIN
-        const isNewAdmin = adminMsgId && adminMsgId !== stockData.lastAdminMessageId;
+        // 🧠 Admin отправляем каждый час
+        shouldIncludeAdmin = isTopOfHour && lastAdminSentHour !== currentHour;
 
-        // 🧠 РЕШЕНИЕ
-        shouldIncludeAdmin = isNewAdmin;
+        if (shouldIncludeAdmin) {
+            console.log('🛠 ADMIN будет добавлен');
+            lastAdminSentHour = currentHour;
+        }
 
         if (shouldIncludeAdmin) {
             console.log('🛠 ADMIN будет добавлен');
