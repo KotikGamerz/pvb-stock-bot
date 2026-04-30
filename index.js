@@ -314,10 +314,7 @@ async function sendToDiscord() {
     const embeds = [embed];
 
     // =========================
-    // 🛠 ADMIN EMBED
-    // =========================
-    // =========================
-    // 🛠 ADMIN EMBED (чистый)
+    // 🛠 ADMIN EMBED (финал)
     // =========================
     if (shouldIncludeAdmin && stockData.adminSeeds?.length) {
         embeds.push({
@@ -332,7 +329,7 @@ async function sendToDiscord() {
             timestamp: now.toISOString()
         });
 
-        console.log('🛠 ADMIN добавлен в embed');
+        console.log('🛠 ADMIN добавлен');
     }
 
     // =========================
@@ -377,10 +374,6 @@ async function checkAll() {
         if (shouldIncludeAdmin) {
             console.log('🛠 ADMIN будет добавлен');
             lastAdminSentHour = currentHour;
-        }
-
-        if (shouldIncludeAdmin) {
-            console.log('🛠 ADMIN будет добавлен');
         }
 
         // 🚫 ПРОВЕРКА СТОКА
