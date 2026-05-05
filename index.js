@@ -52,8 +52,11 @@ const EMOJIS = {
     'ExplosiveCannon': '💥'
 };
 
-// ----- ИЗБРАННЫЕ ДЛЯ ПИНГА (ТВОИ) -----
+// ----- ИЗБРАННЫЕ ДЛЯ ПИНГА -----
 const PREFERRED_SEEDS = [
+    'Mr Carrot',
+    'Tomatrio',
+    'Shroombino',
     'King Limone',
     'Starfruit',
     'Brussel Sprouts',
@@ -69,6 +72,9 @@ const PREFERRED_GEAR = [
 ];
 
 const ROLE_IDS = {
+    "Mr Carrot": "1479770964827967508",
+    "Tomatrio": "1479770968086937790",
+    "Shroombino": "1479770977608138803",
     "King Limone": "1479603135281627329",
     "Starfruit": "1479603138813235220",
     "Brussel Sprouts": "1479603143284363383",
