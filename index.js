@@ -279,12 +279,17 @@ async function sendToDiscord() {
     }
 
     // 🛠 ADMIN 
-    for (const item of stockData.adminSeeds || []) {
-        if (PREFERRED_SEEDS.includes(item.name) || PREFERRED_GEAR.includes(item.name)) {
-            if (ROLE_IDS[item.name]) {
-                pingSet.add(`<@&${ROLE_IDS[item.name]}>`);
-            } else {
-                console.log("❌ Нет ROLE_ID для:", item.name);
+    if (shouldIncludeAdmin) {
+        for (const item of stockData.adminSeeds || []) {
+
+            if (
+                PREFERRED_SEEDS.includes(item.name) ||
+                PREFERRED_GEAR.includes(item.name)
+            ) {
+
+                if (ROLE_IDS[item.name]) {
+                    pingSet.add(`<@&${ROLE_IDS[item.name]}>`);
+                }
             }
         }
     }
