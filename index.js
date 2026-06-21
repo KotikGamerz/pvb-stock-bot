@@ -357,12 +357,37 @@ async function sendToDiscord() {
     // =========================
     // 📤 ОТПРАВКА
     // =========================
-    await axios.post(process.env.TARGET_WEBHOOK_URL, {
+    const payload = {
         content: pingText || undefined,
         embeds
+    };
+
+    const webhookUrls = [
+        process.env.TARGET_WEBHOOK_URL,
+        process.env.KIRO_WEBHOOK_URL
+    ].filter(Boolean);
+
+    const results = await Promise.allSettled(
+        webhookUrls.map(url =>
+            axios.post(url, payload)
+        )
+    );
+
+    results.forEach((result, index) => {
+
+        if (result.status === 'fulfilled') {
+            console.log(`✅ Webhook #${index + 1} отправлен`);
+        } else {
+            console.error(
+                `❌ Webhook #${index + 1} ошибка:`,
+                result.reason?.message
+            );
+        }
+
     });
 
-    console.log('📨 Отправлено!');
+    console.log('📨 Отправка завершена');
+
 }
     
 // ===== ОСНОВНАЯ ПРОВЕРКА =====
