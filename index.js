@@ -102,6 +102,11 @@ let shouldIncludeAdmin = false;
 let isChecking = false;
 let lastAdminSentHour = null;
 
+let lastPriceMessageId = null;
+
+const ENABLE_PVB = process.env.ENABLE_PVB === 'true';
+const ENABLE_GAG2_PRICES = process.env.ENABLE_GAG2_PRICES !== 'false';
+
 // ===== ЗАГРУЗКА/СОХРАНЕНИЕ СОСТОЯНИЯ =====
 async function loadState() {
     try {
@@ -115,6 +120,7 @@ async function loadState() {
         stockData.lastSeedMessageId = saved.lastSeedMessageId || null;
         stockData.lastGearMessageId = saved.lastGearMessageId || null;
         stockData.lastAdminMessageId = saved.lastAdminMessageId || null;
+        lastPriceMessageId = saved.lastPriceMessageId || null;
 
         console.log('📂 Загружено состояние');
     } catch (error) {
@@ -123,7 +129,15 @@ async function loadState() {
 }
 
 async function saveState() {
-    await fs.writeFile('state.json', JSON.stringify(stockData, null, 2));
+    const dataToSave = {
+        ...stockData,
+        lastPriceMessageId
+    };
+
+    await fs.writeFile(
+        'state.json',
+        JSON.stringify(dataToSave, null, 2)
+    );
 }
 
 // ===== ПАРСИНГ КАНАЛА SEED =====
@@ -389,6 +403,91 @@ async function sendToDiscord() {
     console.log('📨 Отправка завершена');
 
 }
+
+async function fetchPriceEmbed(channelId) {
+    try {
+        const channel = client.channels.cache.get(channelId);
+
+        if (!channel) {
+            console.log('❌ Price канал не найден');
+            return null;
+        }
+
+        const messages = await channel.messages.fetch({ limit: 5 });
+
+        const sorted = Array.from(messages.values())
+            .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
+
+        const msg = sorted.find(m =>
+            m.embeds?.length > 0 &&
+            m.embeds[0].title?.includes("Stock Prices")
+        );
+
+        if (!msg) {
+            console.log('⚠️ Price embed не найден');
+            return null;
+        }
+
+        return {
+            messageId: msg.id,
+            embed: msg.embeds[0]
+        };
+
+    } catch (err) {
+        console.error('❌ Ошибка price:', err.message);
+        return null;
+    }
+}
+
+async function sendPriceEmbed(embed) {
+    const payload = {
+        embeds: [embed]
+    };
+
+    const webhookUrls = [
+        process.env.PRICE_WEBHOOK_URL,
+        process.env.KIRO_PRICE_WEBHOOK_URL
+    ].filter(Boolean);
+
+    const results = await Promise.allSettled(
+        webhookUrls.map(url =>
+            axios.post(url, payload)
+        )
+    );
+
+    results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+            console.log(`✅ Price Webhook #${index + 1} отправлен`);
+        } else {
+            console.error(
+                `❌ Price Webhook #${index + 1} ошибка:`,
+                result.reason?.message
+            );
+        }
+    });
+}
+
+async function checkPrices() {
+    console.log('📈 Проверка GAG2 Stock Prices...');
+
+    const data = await fetchPriceEmbed(
+        process.env.PRICE_CHANNEL_ID
+    );
+
+    if (!data) return;
+
+    if (data.messageId === lastPriceMessageId) {
+        console.log('⏸️ Те же цены — пропускаем');
+        return;
+    }
+
+    lastPriceMessageId = data.messageId;
+
+    await sendPriceEmbed(data.embed);
+    await saveState();
+
+    console.log('📈 GAG2 Stock Prices отправлены');
+}
     
 // ===== ОСНОВНАЯ ПРОВЕРКА =====
 async function checkAll() {
@@ -398,6 +497,15 @@ async function checkAll() {
     isChecking = true;
 
     try {
+        if (ENABLE_GAG2_PRICES) {
+            await checkPrices();
+        }
+
+        if (!ENABLE_PVB) {
+            console.log('⏸️ PVB проверки выключены');
+            return;
+        }
+
         const seedData = await parseSeedsChannel(process.env.SEED_CHANNEL_ID);
         const gearData = await parseChannel(process.env.GEAR_CHANNEL_ID, 'gear');
 
@@ -410,12 +518,10 @@ async function checkAll() {
 
         const newGear = gearData?.items;
 
-        // 🧠 ВРЕМЯ
         const now = new Date();
         const currentHour = now.getUTCHours();
         const isTopOfHour = now.getMinutes() === 0;
 
-        // 🧠 Admin отправляем каждый час
         shouldIncludeAdmin = isTopOfHour && lastAdminSentHour !== currentHour;
 
         if (shouldIncludeAdmin) {
@@ -423,7 +529,6 @@ async function checkAll() {
             lastAdminSentHour = currentHour;
         }
 
-        // 🚫 ПРОВЕРКА СТОКА
         const isSameStock =
             seedMsgId === stockData.lastSeedMessageId &&
             gearMsgId === stockData.lastGearMessageId;
@@ -433,7 +538,6 @@ async function checkAll() {
             return;
         }
 
-        // 💾 ID
         stockData.lastSeedMessageId = seedMsgId;
         stockData.lastGearMessageId = gearMsgId;
 
@@ -441,12 +545,11 @@ async function checkAll() {
             stockData.lastAdminMessageId = adminMsgId;
         }
 
-        // 💾 ДАННЫЕ
         stockData.seeds = normalSeeds || [];
         stockData.gear = newGear || [];
         stockData.adminSeeds = adminSeeds || [];
 
-        console.log('🚀 Отправляем сток');
+        console.log('🚀 Отправляем PVB сток');
 
         await saveState();
         await sendToDiscord();
@@ -464,13 +567,13 @@ function startSmartScheduler() {
         const now = new Date();
         const seconds = now.getSeconds();
 
-        let targetSecond;
+        let delay;
 
-        if (seconds < 20) targetSecond = 20;
-        else if (seconds < 50) targetSecond = 50;
-        else targetSecond = 80; // 60 + 20
-
-        let delay = (targetSecond - seconds) * 1000;
+        if (seconds < 20) {
+            delay = (20 - seconds) * 1000;
+        } else {
+            delay = (60 - seconds + 20) * 1000;
+        }
 
         console.log(`⏱️ Следующая проверка через ${delay / 1000}s`);
 
