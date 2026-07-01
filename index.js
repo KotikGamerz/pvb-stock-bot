@@ -488,7 +488,7 @@ function parseAuctionItems(embed) {
 
         const clean = line.trim();
 
-        const match = clean.match(/^[^\w]*\s*(.+?)\s*x(\d+)$/i);
+        const match = clean.match(/^•\s*(.+?)\s*x(\d+)$/i);
 
         if (!match) continue;
 
