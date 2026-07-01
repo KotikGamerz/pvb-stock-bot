@@ -459,7 +459,7 @@ async function fetchAuctionEmbed(channelId) {
 
         const msg = sorted.find(m =>
             m.embeds?.length > 0 &&
-            m.embeds[0].title?.includes("auction stock")
+            m.embeds[0].title?.includes("Auctions Stock")
         );
 
         if (!msg) {
