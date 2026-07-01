@@ -103,9 +103,11 @@ let isChecking = false;
 let lastAdminSentHour = null;
 
 let lastPriceMessageId = null;
+let lastAuctionMessageId = null;
 
 const ENABLE_PVB = process.env.ENABLE_PVB === 'true';
 const ENABLE_GAG2_PRICES = process.env.ENABLE_GAG2_PRICES !== 'false';
+const ENABLE_GAG2_AUCTIONS = process.env.ENABLE_GAG2_AUCTIONS !== 'false';
 
 // ===== ЗАГРУЗКА/СОХРАНЕНИЕ СОСТОЯНИЯ =====
 async function loadState() {
@@ -121,6 +123,7 @@ async function loadState() {
         stockData.lastGearMessageId = saved.lastGearMessageId || null;
         stockData.lastAdminMessageId = saved.lastAdminMessageId || null;
         lastPriceMessageId = saved.lastPriceMessageId || null;
+        lastAuctionMessageId = saved.lastAuctionMessageId || null;
 
         console.log('📂 Загружено состояние');
     } catch (error) {
@@ -131,7 +134,8 @@ async function loadState() {
 async function saveState() {
     const dataToSave = {
         ...stockData,
-        lastPriceMessageId
+        lastPriceMessageId,
+        lastAuctionMessageId
     };
 
     await fs.writeFile(
@@ -439,6 +443,63 @@ async function fetchPriceEmbed(channelId) {
     }
 }
 
+async function fetchAuctionEmbed(channelId) {
+    try {
+        const channel = client.channels.cache.get(channelId);
+
+        if (!channel) {
+            console.log('❌ Auction канал не найден');
+            return null;
+        }
+
+        const messages = await channel.messages.fetch({ limit: 5 });
+
+        const sorted = Array.from(messages.values())
+            .sort((a, b) => b.createdTimestamp - a.createdTimestamp);
+
+        const msg = sorted.find(m =>
+            m.embeds?.length > 0 &&
+            m.embeds[0].title?.includes("auction stock")
+        );
+
+        if (!msg) {
+            console.log('⚠️ Auction embed не найден');
+            return null;
+        }
+
+        return {
+            messageId: msg.id,
+            embed: msg.embeds[0]
+        };
+
+    } catch (err) {
+        console.error('❌ Ошибка auction:', err.message);
+        return null;
+    }
+}
+
+function parseAuctionItems(embed) {
+
+    const text = embed.description || '';
+
+    const items = [];
+
+    for (const line of text.split('\n')) {
+
+        const clean = line.trim();
+
+        const match = clean.match(/^[^\w]*\s*(.+?)\s*x(\d+)$/i);
+
+        if (!match) continue;
+
+        items.push({
+            text: `- ${match[1]} — ${match[2]}`
+        });
+    }
+
+    return items;
+}
+
 async function sendPriceEmbed(embed) {
     const payload = {
         embeds: [embed]
@@ -467,6 +528,57 @@ async function sendPriceEmbed(embed) {
     });
 }
 
+async function sendAuctionEmbed(embed) {
+
+    const items = parseAuctionItems(embed);
+
+    const now = new Date();
+
+    const newEmbed = {
+        title: "🛒 GROW A GARDEN 2 | AUCTIONS STOCK",
+        color: 0xffa726,
+        fields: [
+            {
+                name: "🛒 AUCTIONS",
+                value: items
+                    .map(i => i.text)
+                    .join('\n'),
+                inline: false
+            }
+        ],
+        footer: {
+            text: `Last update: ${now.toLocaleTimeString('en-GB')} UTC`
+        },
+        timestamp: now.toISOString()
+    };
+
+    const payload = {
+        embeds: [newEmbed]
+    };
+
+    const webhookUrls = [
+        process.env.AUCTION_WEBHOOK_URL,
+        process.env.KIRO_AUCTION_WEBHOOK_URL
+    ].filter(Boolean);
+
+    const results = await Promise.allSettled(
+        webhookUrls.map(url =>
+            axios.post(url, payload)
+        )
+    );
+
+    results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+            console.log(`✅ Auction Webhook #${index + 1} отправлен`);
+        } else {
+            console.error(
+                `❌ Auction Webhook #${index + 1} ошибка:`,
+                result.reason?.message
+            );
+        }
+    });
+}
+
 async function checkPrices() {
     console.log('📈 Проверка GAG2 Stock Prices...');
 
@@ -488,6 +600,35 @@ async function checkPrices() {
 
     console.log('📈 GAG2 Stock Prices отправлены');
 }
+
+async function checkAuctions() {
+
+    const minute = new Date().getUTCMinutes();
+
+    if (minute % 30 !== 0) {
+        return;
+    }
+
+    console.log('🛒 Проверка Auctions...');
+
+    const data = await fetchAuctionEmbed(
+        process.env.AUCTION_CHANNEL_ID
+    );
+
+    if (!data) return;
+
+    if (data.messageId === lastAuctionMessageId) {
+        console.log('⏸️ Тот же Auction — пропускаем');
+        return;
+    }
+
+    lastAuctionMessageId = data.messageId;
+
+    await sendAuctionEmbed(data.embed);
+    await saveState();
+
+    console.log('🛒 Auctions отправлены');
+}
     
 // ===== ОСНОВНАЯ ПРОВЕРКА =====
 async function checkAll() {
@@ -499,6 +640,10 @@ async function checkAll() {
     try {
         if (ENABLE_GAG2_PRICES) {
             await checkPrices();
+        }
+
+        if (ENABLE_GAG2_AUCTIONS) {
+            await checkAuctions();
         }
 
         if (!ENABLE_PVB) {
