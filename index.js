@@ -544,41 +544,34 @@ function parsePriceItems(embed) {
     return items;
 }
 
-function buildPriceFields(items) {
-
+function buildPriceFields(items, maxLength = 1000) {
     const fields = [];
-
     let currentLines = [];
-    let currentLength = 0;
 
     for (const item of items) {
+        const line = `- ${item}`;
 
-        const line =
-            `- ${item.raw} — x${item.multiplier}`;
+        const currentText = currentLines.join('\n');
 
-        // +1 учитывает перенос строки
         if (
-            currentLength + line.length + 1 > 1000
+            currentLines.length > 0 &&
+            currentText.length + line.length + 1 > maxLength
         ) {
-
             fields.push({
-                name: "\u200B",
+                name: fields.length === 0 ? "📈 PRICES" : "\u200b",
                 value: currentLines.join('\n'),
                 inline: false
             });
 
             currentLines = [];
-            currentLength = 0;
         }
 
         currentLines.push(line);
-        currentLength += line.length + 1;
     }
 
     if (currentLines.length > 0) {
-
         fields.push({
-            name: "\u200B",
+            name: fields.length === 0 ? "📈 PRICES" : "\u200b",
             value: currentLines.join('\n'),
             inline: false
         });
