@@ -500,9 +500,118 @@ function parseAuctionItems(embed) {
     return items;
 }
 
-async function sendPriceEmbed(embed) {
+function parsePriceItems(embed) {
+
+    const text =
+        embed.description ||
+        embed.fields?.map(f => f.value).join('\n') ||
+        '';
+
+    const items = [];
+
+    for (const rawLine of text.split('\n')) {
+
+        const line = rawLine.trim();
+
+        if (!line) continue;
+
+        /*
+            Примеры:
+            🌘 Eclipse Bloom x1.2
+            🫛 Green Bean x1.19
+            🌵 Cactus x1.18
+            🫐 Blueberry x0.97
+        */
+
+        const match = line.match(
+            /^(.+?)\s+x(\d+(?:\.\d+)?)$/i
+        );
+
+        if (!match) {
+            console.log(
+                "⚠️ Price строка не распознана:",
+                line
+            );
+            continue;
+        }
+
+        items.push({
+            raw: match[1].trim(),
+            multiplier: match[2]
+        });
+    }
+
+    return items;
+}
+
+function buildPriceFields(items) {
+
+    const fields = [];
+
+    let currentLines = [];
+    let currentLength = 0;
+
+    for (const item of items) {
+
+        const line =
+            `- ${item.raw} — x${item.multiplier}`;
+
+        // +1 учитывает перенос строки
+        if (
+            currentLength + line.length + 1 > 1000
+        ) {
+
+            fields.push({
+                name: "\u200B",
+                value: currentLines.join('\n'),
+                inline: false
+            });
+
+            currentLines = [];
+            currentLength = 0;
+        }
+
+        currentLines.push(line);
+        currentLength += line.length + 1;
+    }
+
+    if (currentLines.length > 0) {
+
+        fields.push({
+            name: "\u200B",
+            value: currentLines.join('\n'),
+            inline: false
+        });
+    }
+
+    return fields;
+}
+
+async function sendPriceEmbed(originalEmbed) {
+
+    const items = parsePriceItems(originalEmbed);
+
+    if (!items.length) {
+        console.log("❌ Price: предметы не распознаны");
+        return;
+    }
+
+    const now = new Date();
+
+    const newEmbed = {
+        title: "📈 GROW A GARDEN 2 | STOCK PRICES",
+        color: 0x5865f2,
+        fields: buildPriceFields(items),
+        footer: {
+            text:
+                `Last update: ` +
+                `${now.toLocaleTimeString('en-GB')} UTC`
+        },
+        timestamp: now.toISOString()
+    };
+
     const payload = {
-        embeds: [embed]
+        embeds: [newEmbed]
     };
 
     const webhookUrls = [
@@ -517,15 +626,26 @@ async function sendPriceEmbed(embed) {
     );
 
     results.forEach((result, index) => {
+
         if (result.status === 'fulfilled') {
-            console.log(`✅ Price Webhook #${index + 1} отправлен`);
+
+            console.log(
+                `✅ Price Webhook #${index + 1} отправлен`
+            );
+
         } else {
+
             console.error(
                 `❌ Price Webhook #${index + 1} ошибка:`,
+                result.reason?.response?.data ||
                 result.reason?.message
             );
         }
     });
+
+    console.log(
+        `📈 GAG2 Stock Prices отправлены: ${items.length} предметов`
+    );
 }
 
 async function sendAuctionEmbed(embed) {
