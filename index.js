@@ -549,7 +549,7 @@ function buildPriceFields(items, maxLength = 1000) {
     let currentLines = [];
 
     for (const item of items) {
-        const line = `- ${item}`;
+        const line = `- ${item.raw} — x${item.multiplier}`;
 
         const currentText = currentLines.join('\n');
 
