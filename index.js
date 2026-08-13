@@ -105,6 +105,9 @@ let lastAdminSentHour = null;
 let lastPriceMessageId = null;
 let lastAuctionMessageId = null;
 
+let lastFallPriceMessageId = null;
+let lastFallAuctionMessageId = null;
+
 const ENABLE_PVB = process.env.ENABLE_PVB === 'true';
 const ENABLE_GAG2_PRICES = process.env.ENABLE_GAG2_PRICES !== 'false';
 const ENABLE_GAG2_AUCTIONS = process.env.ENABLE_GAG2_AUCTIONS !== 'false';
@@ -124,6 +127,8 @@ async function loadState() {
         stockData.lastAdminMessageId = saved.lastAdminMessageId || null;
         lastPriceMessageId = saved.lastPriceMessageId || null;
         lastAuctionMessageId = saved.lastAuctionMessageId || null;
+        lastFallPriceMessageId = saved.lastFallPriceMessageId || null;
+        lastFallAuctionMessageId = saved.lastFallAuctionMessageId || null;
 
         console.log('📂 Загружено состояние');
     } catch (error) {
@@ -135,7 +140,9 @@ async function saveState() {
     const dataToSave = {
         ...stockData,
         lastPriceMessageId,
-        lastAuctionMessageId
+        lastAuctionMessageId,
+        lastFallPriceMessageId,
+        lastFallAuctionMessageId
     };
 
     await fs.writeFile(
@@ -443,6 +450,64 @@ async function fetchPriceEmbed(channelId) {
     }
 }
 
+async function fetchOriginalEmbed(
+    channelId,
+    requiredTitle,
+    label
+) {
+    try {
+        const channel =
+            client.channels.cache.get(channelId);
+
+        if (!channel) {
+            console.log(`❌ ${label} канал не найден`);
+            return null;
+        }
+
+        const messages =
+            await channel.messages.fetch({
+                limit: 5
+            });
+
+        const sorted =
+            Array.from(messages.values())
+                .sort(
+                    (a, b) =>
+                        b.createdTimestamp -
+                        a.createdTimestamp
+                );
+
+        const msg = sorted.find(message =>
+            message.embeds?.length > 0 &&
+            (message.embeds[0].title || '')
+                .toLowerCase()
+                .includes(
+                    requiredTitle.toLowerCase()
+                )
+        );
+
+        if (!msg) {
+            console.log(
+                `⚠️ ${label} embed не найден`
+            );
+            return null;
+        }
+
+        return {
+            messageId: msg.id,
+            embed: msg.embeds[0]
+        };
+
+    } catch (err) {
+        console.error(
+            `❌ Ошибка ${label}:`,
+            err.message
+        );
+
+        return null;
+    }
+}
+
 async function fetchAuctionEmbed(channelId) {
     try {
         const channel = client.channels.cache.get(channelId);
@@ -641,6 +706,47 @@ async function sendPriceEmbed(originalEmbed) {
     );
 }
 
+async function sendOriginalEmbed(
+    embed,
+    webhookUrls,
+    label
+) {
+    const payload = {
+        embeds: [embed]
+    };
+
+    const urls =
+        webhookUrls.filter(Boolean);
+
+    if (!urls.length) {
+        console.log(
+            `❌ ${label}: вебхуки не указаны`
+        );
+        return;
+    }
+
+    const results =
+        await Promise.allSettled(
+            urls.map(url =>
+                axios.post(url, payload)
+            )
+        );
+
+    results.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+            console.log(
+                `✅ ${label} Webhook #${index + 1} отправлен`
+            );
+        } else {
+            console.error(
+                `❌ ${label} Webhook #${index + 1} ошибка:`,
+                result.reason?.response?.data ||
+                result.reason?.message
+            );
+        }
+    });
+}
+
 async function sendAuctionEmbed(embed) {
 
     const items = parseAuctionItems(embed);
@@ -714,6 +820,53 @@ async function checkPrices() {
     console.log('📈 GAG2 Stock Prices отправлены');
 }
 
+async function checkFallPrices() {
+    console.log(
+        '🍁📈 Проверка GAG2 Fall Stock Prices...'
+    );
+
+    const data =
+        await fetchOriginalEmbed(
+            '1533558976304775248',
+            'Stock Prices',
+            'Fall Prices'
+        );
+
+    if (!data) return;
+
+    if (
+        data.messageId ===
+        lastFallPriceMessageId
+    ) {
+        console.log(
+            '⏸️ Те же Fall Prices — пропускаем'
+        );
+        return;
+    }
+
+    await sendOriginalEmbed(
+        data.embed,
+        [
+            process.env.PRICE_WEBHOOK_URL,
+            process.env.KIRO_PRICE_WEBHOOK_URL
+        ],
+        'Fall Prices'
+    );
+
+    /*
+        Запоминаем ID только после успешной попытки
+        отправки.
+    */
+    lastFallPriceMessageId =
+        data.messageId;
+
+    await saveState();
+
+    console.log(
+        '🍁📈 GAG2 Fall Stock Prices отправлены'
+    );
+}
+
 async function checkAuctions() {
 
     const minute = new Date().getUTCMinutes();
@@ -742,6 +895,60 @@ async function checkAuctions() {
 
     console.log('🛒 Auctions отправлены');
 }
+
+async function checkFallAuctions() {
+    const minute =
+        new Date().getUTCMinutes();
+
+    /*
+        Аукцион обновляется каждые 30 минут,
+        как и обычный.
+    */
+    if (minute % 30 !== 0) {
+        return;
+    }
+
+    console.log(
+        '🍁🛒 Проверка GAG2 Fall Auctions...'
+    );
+
+    const data =
+        await fetchOriginalEmbed(
+            '1533558903361638551',
+            'Auctions Stock',
+            'Fall Auctions'
+        );
+
+    if (!data) return;
+
+    if (
+        data.messageId ===
+        lastFallAuctionMessageId
+    ) {
+        console.log(
+            '⏸️ Тот же Fall Auction — пропускаем'
+        );
+        return;
+    }
+
+    await sendOriginalEmbed(
+        data.embed,
+        [
+            process.env.AUCTION_WEBHOOK_URL,
+            process.env.KIRO_AUCTION_WEBHOOK_URL
+        ],
+        'Fall Auctions'
+    );
+
+    lastFallAuctionMessageId =
+        data.messageId;
+
+    await saveState();
+
+    console.log(
+        '🍁🛒 GAG2 Fall Auctions отправлены'
+    );
+}
     
 // ===== ОСНОВНАЯ ПРОВЕРКА =====
 async function checkAll() {
@@ -753,10 +960,12 @@ async function checkAll() {
     try {
         if (ENABLE_GAG2_PRICES) {
             await checkPrices();
+            await checkFallPrices();
         }
 
         if (ENABLE_GAG2_AUCTIONS) {
             await checkAuctions();
+            await checkFallAuctions();
         }
 
         if (!ENABLE_PVB) {
